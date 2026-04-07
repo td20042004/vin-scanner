@@ -818,7 +818,9 @@
 
       try {
         const mimeType = currentMimeType || 'image/jpeg';
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+        // ✅ 修改後的程式碼 (升級為 2.0 最新版)：
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
 
         const response = await fetch(apiUrl, {
           method: 'POST',
