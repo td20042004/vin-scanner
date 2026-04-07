@@ -1,0 +1,1028 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VIN 車身號碼辨識系統</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
+
+    :root {
+      --bg: #0a0e1a;
+      --surface: #111827;
+      --surface2: #1a2235;
+      --accent: #00d4ff;
+      --accent2: #ff6b35;
+      --success: #00e676;
+      --warn: #ffb300;
+      --danger: #ff3d71;
+      --text: #e8f0fe;
+      --muted: #6b7a99;
+      --border: rgba(0, 212, 255, 0.15);
+      --mono: 'Share Tech Mono', monospace;
+      --sans: 'Noto Sans TC', sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Grid bg */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(0, 212, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 212, 255, 0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    header {
+      position: relative;
+      z-index: 1;
+      padding: 24px 32px 20px;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(180deg, rgba(0, 212, 255, 0.05) 0%, transparent 100%);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .logo-icon {
+      width: 44px;
+      height: 44px;
+      background: linear-gradient(135deg, var(--accent), #0066ff);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      box-shadow: 0 0 20px rgba(0, 212, 255, 0.4);
+      flex-shrink: 0;
+    }
+
+    .logo-text h1 {
+      font-family: var(--mono);
+      font-size: 18px;
+      letter-spacing: 0.1em;
+      color: var(--accent);
+    }
+
+    .logo-text p {
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+      margin-top: 2px;
+    }
+
+    .status-dot {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--muted);
+      font-family: var(--mono);
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 8px var(--success);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.4;
+      }
+    }
+
+    main {
+      position: relative;
+      z-index: 1;
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 32px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* Config panel */
+    .config-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px 24px;
+    }
+
+    .config-panel summary {
+      cursor: pointer;
+      font-size: 13px;
+      color: var(--accent);
+      font-family: var(--mono);
+      letter-spacing: 0.05em;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .config-panel summary::before {
+      content: '⚙';
+    }
+
+    .config-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 16px;
+    }
+
+    @media(max-width:600px) {
+      .config-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    label {
+      display: block;
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+    }
+
+    input[type=text],
+    input[type=password] {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 13px;
+      outline: none;
+      transition: border-color .2s;
+    }
+
+    input:focus {
+      border-color: var(--accent);
+    }
+
+    .hint {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 5px;
+    }
+
+    .hint a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    /* Upload zone */
+    .upload-zone {
+      background: var(--surface);
+      border: 2px dashed var(--border);
+      border-radius: 16px;
+      padding: 48px 32px;
+      text-align: center;
+      cursor: pointer;
+      transition: all .3s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .upload-zone:hover,
+    .upload-zone.dragover {
+      border-color: var(--accent);
+      background: rgba(0, 212, 255, 0.04);
+    }
+
+    .upload-zone.dragover {
+      transform: scale(1.01);
+    }
+
+    .upload-icon {
+      font-size: 48px;
+      margin-bottom: 12px;
+      display: block;
+    }
+
+    .upload-zone h2 {
+      font-size: 16px;
+      font-weight: 500;
+      margin-bottom: 8px;
+    }
+
+    .upload-zone p {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .upload-zone input[type=file] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+
+    #preview-container {
+      display: none;
+      margin-top: 16px;
+      position: relative;
+    }
+
+    #preview-img {
+      width: 100%;
+      max-height: 300px;
+      object-fit: contain;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+    }
+
+    .clear-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: rgba(0, 0, 0, 0.7);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      border-radius: 6px;
+      padding: 4px 10px;
+      cursor: pointer;
+      font-size: 12px;
+      transition: color .2s;
+    }
+
+    .clear-btn:hover {
+      color: var(--danger);
+    }
+
+    /* Buttons */
+    .btn-row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      padding: 12px 28px;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      font-family: var(--mono);
+      font-size: 14px;
+      letter-spacing: 0.05em;
+      transition: all .2s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1;
+      justify-content: center;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), #0066ff);
+      color: #fff;
+      box-shadow: 0 4px 20px rgba(0, 212, 255, 0.3);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 28px rgba(0, 212, 255, 0.5);
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btn-success {
+      background: linear-gradient(135deg, var(--success), #00a854);
+      color: #000;
+      box-shadow: 0 4px 20px rgba(0, 230, 118, 0.3);
+    }
+
+    .btn-success:hover {
+      transform: translateY(-2px);
+    }
+
+    .btn-success:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* Loading */
+    .loading-bar {
+      display: none;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px 20px;
+      font-family: var(--mono);
+      font-size: 13px;
+      color: var(--accent);
+      align-items: center;
+      gap: 12px;
+    }
+
+    .loading-bar.show {
+      display: flex;
+    }
+
+    .spinner {
+      width: 18px;
+      height: 18px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    /* Result table */
+    #result-section {
+      display: none;
+    }
+
+    #result-section.show {
+      display: block;
+    }
+
+    .section-title {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--accent);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .section-title::before {
+      content: '';
+      width: 3px;
+      height: 14px;
+      background: var(--accent);
+      border-radius: 2px;
+      display: inline-block;
+    }
+
+    .result-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    thead {
+      background: rgba(0, 212, 255, 0.06);
+    }
+
+    th {
+      padding: 12px 16px;
+      text-align: left;
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--border);
+    }
+
+    td {
+      padding: 14px 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    .vin-code {
+      font-family: var(--mono);
+      font-size: 15px;
+      color: var(--accent);
+      letter-spacing: 0.08em;
+    }
+
+    .vin-unknown {
+      color: var(--warn);
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-family: var(--mono);
+    }
+
+    .badge-new {
+      background: rgba(0, 230, 118, 0.15);
+      color: var(--success);
+      border: 1px solid rgba(0, 230, 118, 0.3);
+    }
+
+    .badge-dup {
+      background: rgba(255, 179, 0, 0.15);
+      color: var(--warn);
+      border: 1px solid rgba(255, 179, 0, 0.3);
+    }
+
+    /* History */
+    #history-section {
+      display: none;
+    }
+
+    #history-section.show {
+      display: block;
+    }
+
+    .history-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      max-height: 320px;
+      overflow-y: auto;
+    }
+
+    .history-card::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    .history-card::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .history-card::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 2px;
+    }
+
+    .history-row {
+      display: flex;
+      align-items: center;
+      padding: 12px 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      font-size: 13px;
+      gap: 12px;
+    }
+
+    .history-row:last-child {
+      border-bottom: none;
+    }
+
+    .history-num {
+      font-family: var(--mono);
+      color: var(--muted);
+      font-size: 11px;
+      min-width: 28px;
+    }
+
+    .history-vin {
+      font-family: var(--mono);
+      color: var(--accent);
+      font-size: 14px;
+      flex: 1;
+      letter-spacing: 0.05em;
+    }
+
+    .history-meta {
+      color: var(--muted);
+      font-size: 11px;
+      text-align: right;
+    }
+
+    /* Toast */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 20px;
+      font-size: 13px;
+      font-family: var(--mono);
+      display: none;
+      z-index: 1000;
+      max-width: 320px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+      animation: slideIn .3s ease;
+    }
+
+    @keyframes slideIn {
+      from {
+        transform: translateY(20px);
+        opacity: 0;
+      }
+
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+
+    #toast.success {
+      border-color: rgba(0, 230, 118, 0.4);
+      color: var(--success);
+    }
+
+    #toast.error {
+      border-color: rgba(255, 61, 113, 0.4);
+      color: var(--danger);
+    }
+
+    #toast.info {
+      border-color: rgba(0, 212, 255, 0.4);
+      color: var(--accent);
+    }
+
+    footer {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+      padding: 20px;
+      color: var(--muted);
+      font-size: 11px;
+      font-family: var(--mono);
+      border-top: 1px solid var(--border);
+    }
+  </style>
+</head>
+
+<body>
+
+  <header>
+    <div class="logo-icon">🚗</div>
+    <div class="logo-text">
+      <h1>VIN_SCANNER</h1>
+      <p>車身號碼 AI 辨識系統 · 車身號碼-AI</p>
+    </div>
+    <div class="status-dot">
+      <div class="dot"></div>
+      <span>READY</span>
+    </div>
+  </header>
+
+  <main>
+
+    <!-- Config -->
+    <details class="config-panel" id="config-details">
+      <summary>系統設定 (首次使用請展開填寫)</summary>
+      <div class="config-grid">
+        <div>
+          <label>Google Apps Script Web App URL</label>
+          <input type="text" id="gas-url" placeholder="https://script.google.com/macros/s/.../exec" />
+          <p class="hint">部署 Apps Script 後取得的 URL</p>
+        </div>
+      </div>
+      <p class="hint" style="margin-top:12px;">✅ AI 辨識使用 Puter.js，完全免費，不需要 API Key。</p>
+      <button onclick="verifyKey()"
+        style="margin-top:10px;padding:8px 16px;background:var(--surface2);border:1px solid var(--border);color:var(--accent);border-radius:8px;cursor:pointer;font-family:var(--mono);font-size:12px;">🔍
+        確認設定是否已儲存</button>
+    </details>
+
+    <!-- Upload -->
+    <div class="upload-zone" id="upload-zone">
+      <input type="file" id="file-input" accept="image/*" capture="environment" />
+      <span class="upload-icon">📷</span>
+      <h2>上傳 VIN 照片</h2>
+      <p>點擊選擇圖片，或直接拖曳至此<br>支援 JPG、PNG、HEIC · 手機可直接拍照</p>
+      <div id="preview-container">
+        <img id="preview-img" />
+        <button class="clear-btn" id="clear-btn" onclick="clearImage(event)">✕ 清除</button>
+      </div>
+    </div>
+
+    <!-- Buttons -->
+    <div class="btn-row">
+      <button class="btn btn-primary" id="scan-btn" onclick="scanVIN()" disabled>
+        🔍 AI 辨識 VIN
+      </button>
+      <button class="btn btn-success" id="write-btn" onclick="writeToSheets()" disabled>
+        📊 寫入 Google Sheets
+      </button>
+    </div>
+
+    <!-- Loading -->
+    <div class="loading-bar" id="loading">
+      <div class="spinner"></div>
+      <span id="loading-text">AI 辨識中，請稍候...</span>
+    </div>
+
+    <!-- Result -->
+    <div id="result-section">
+      <div class="section-title">辨識結果</div>
+      <div class="result-card">
+        <table>
+          <thead>
+            <tr>
+              <th>編號</th>
+              <th>品牌</th>
+              <th>車種</th>
+              <th>車身號碼</th>
+              <th>狀態</th>
+            </tr>
+          </thead>
+          <tbody id="result-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- History -->
+    <div id="history-section">
+      <div class="section-title">本地歷史記錄 <span style="color:var(--muted);font-size:10px;">(儲存於此裝置)</span></div>
+      <div class="history-card" id="history-list"></div>
+    </div>
+
+  </main>
+
+  <footer>VIN_SCANNER · 個人專用 · AI Vision 免費版 · 資料同步至 Google Sheets</footer>
+
+  <div id="toast"></div>
+
+  <!-- Puter.js 免費無限 AI Vision (GPT-4o) -->
+  <script src="https://js.puter.com/v2/"></script>
+  <script>
+    // ── State ──────────────────────────────────────────────
+    let currentImageBase64 = null;
+    let currentMimeType = 'image/jpeg';
+    let currentResult = null;
+    let localHistory = [];
+
+    // ── Init ───────────────────────────────────────────────
+    window.addEventListener('load', () => {
+      const savedUrl = localStorage.getItem('vin_gas_url') || '';
+      if (savedUrl) document.getElementById('gas-url').value = savedUrl;
+
+      localHistory = JSON.parse(localStorage.getItem('vin_history') || '[]');
+      renderHistory();
+
+      // Auto-save GAS URL
+      document.getElementById('gas-url').addEventListener('change', e => {
+        localStorage.setItem('vin_gas_url', e.target.value.trim());
+        toast('✅ Apps Script URL 已儲存', 'success');
+      });
+    });
+
+    // ── Drag & Drop ────────────────────────────────────────
+    const zone = document.getElementById('upload-zone');
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+    zone.addEventListener('drop', e => {
+      e.preventDefault();
+      zone.classList.remove('dragover');
+      const file = e.dataTransfer.files[0];
+      if (file) handleFile(file);
+    });
+
+    document.getElementById('file-input').addEventListener('change', e => {
+      if (e.target.files[0]) handleFile(e.target.files[0]);
+    });
+
+    function handleFile(file) {
+      if (!file.type.startsWith('image/')) { toast('請上傳圖片檔案', 'error'); return; }
+      currentMimeType = file.type || 'image/jpeg';
+      const reader = new FileReader();
+      reader.onload = ev => {
+        const dataUrl = ev.target.result;
+        currentImageBase64 = dataUrl.split(',')[1];
+        document.getElementById('preview-img').src = dataUrl;
+        document.getElementById('preview-container').style.display = 'block';
+        document.getElementById('scan-btn').disabled = false;
+        document.getElementById('result-section').classList.remove('show');
+        document.getElementById('write-btn').disabled = true;
+        currentResult = null;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function clearImage(e) {
+      e.stopPropagation();
+      currentImageBase64 = null;
+      document.getElementById('preview-img').src = '';
+      document.getElementById('preview-container').style.display = 'none';
+      document.getElementById('file-input').value = '';
+      document.getElementById('scan-btn').disabled = true;
+      document.getElementById('write-btn').disabled = true;
+      document.getElementById('result-section').classList.remove('show');
+    }
+
+    // ── NHTSA VIN 精準解碼 ────────────────────────────────
+    async function decodeVINfromNHTSA(vin) {
+      try {
+        const res = await fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/decodevin/${vin}?format=json`);
+        const data = await res.json();
+        const results = data.Results;
+
+        const get = (var_name) => {
+          const item = results.find(r => r.Variable === var_name);
+          return (item && item.Value && item.Value !== 'null' && item.Value !== 'Not Applicable') ? item.Value : '';
+        };
+
+        const make = get('Make');
+        const model = get('Model');
+        const year = get('Model Year');
+        const trim = get('Trim');
+        const series = get('Series');
+
+        let modelStr = model;
+        if (series) modelStr += ' ' + series;
+        if (trim) modelStr += ' ' + trim;
+        if (year) modelStr = year + ' ' + modelStr;
+
+        return {
+          brand: make || '',
+          model: modelStr.trim() || ''
+        };
+      } catch (e) {
+        return { brand: '', model: '' };
+      }
+    }
+
+    // ── Scan VIN via Puter.js（免費 GPT-4o Vision）────────
+    async function scanVIN() {
+      if (!currentImageBase64) { toast('請先上傳圖片', 'error'); return; }
+
+      setLoading(true, '🔍 GPT-4o AI 辨識中...');
+
+      const prompt = `你是一個專業的車輛識別專家。請分析這張圖片（可能是汽車實體銘牌、擋風玻璃VIN、或台灣行車執照），並精準提取 17 碼的車身號碼 (VIN)。
+
+【嚴格提取規則】
+1. 特徵限制：VIN 絕對是 17 個字元長度（英文大寫 + 數字），且國際標準規定「絕對不會」包含英文字母 I、O、Q。
+2. 針對「台灣行車執照（綠色卡片）」：
+   - 請務必精確尋找「車身號碼」欄位（通常在「引擎號碼」或「附加配備」下方）。
+   - 絕對不要把「引擎號碼」或「牌照號碼」誤認為車身號碼。
+   - 廠牌對應「廠牌」欄位，車型對應「型式」欄位。
+3. 針對「車身貼紙/銘牌/擋風玻璃」：
+   - 請尋找標示為 VIN，或是獨立成行的 17 碼字串。
+   - 台灣常見開頭：W (如BMW, Benz, Audi)、J (如Subaru)、R (如台灣國產 Hyundai)。
+   - 請忽略旁邊的重量資訊 (kg) 或型號代碼 (Typ, Trim Code)。
+4. 易混淆字元警告：請極度仔細分辨 0與O、8與B、S與5、Z與2、U與V。
+5. 容錯原則：如果圖片因反光、髒污導致字元模糊，請根據殘影、字體輪廓與上下文盡最大努力推測（例如依據剩餘線條猜測是 6 還是 8）。只有在 100% 看不到任何特徵時，才使用 ?
+
+請只回傳 JSON 格式，不要加入任何 markdown 標記 (例如 \`\`\`json) 或其他文字：
+{
+  "vin": "完整17碼",
+  "brand": "廠牌文字",
+  "model": "車型文字",
+  "confidence": "high/medium/low",
+  "note": "若有模糊或特定字元不確定請在此註明"
+}`;
+
+      try {
+        const mimeType = currentMimeType || 'image/jpeg';
+        const dataUrl = `data:${mimeType};base64,${currentImageBase64}`;
+
+        const response = await puter.ai.chat(prompt, dataUrl);
+        const rawText = (typeof response === 'string'
+          ? response
+          : response?.message?.content || response?.text || '').trim();
+
+        const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) throw new Error('無法解析 AI 回應');
+        const result = JSON.parse(jsonMatch[0]);
+
+        currentResult = result;
+
+        // 若 VIN 完整（無?），用 NHTSA 精準解碼品牌車種
+        if (!result.vin.includes('?')) {
+          setLoading(true, '🔎 查詢精準車種資料庫...');
+          const decoded = await decodeVINfromNHTSA(result.vin);
+          if (decoded.brand) currentResult.brand = decoded.brand;
+          if (decoded.model) currentResult.model = decoded.model;
+        }
+
+        renderResult(currentResult);
+        setLoading(false);
+
+        if (result.vin.includes('?')) {
+          toast('⚠️ 部分字元不確定，建議重新拍攝清晰照片', 'info');
+        } else {
+          toast('✅ VIN 辨識完成', 'success');
+        }
+
+      } catch (err) {
+        setLoading(false);
+        toast('❌ 辨識失敗：' + err.message, 'error');
+        console.error(err);
+      }
+    }
+
+    function renderResult(result) {
+      const tbody = document.getElementById('result-tbody');
+      const isDup = localHistory.some(h => h.vin === result.vin && !result.vin.includes('?'));
+      const statusBadge = isDup
+        ? '<span class="badge badge-dup">⚠ 重複</span>'
+        : '<span class="badge badge-new">✓ 新增</span>';
+
+      const vinClass = result.vin.includes('?') ? 'vin-code vin-unknown' : 'vin-code';
+
+      tbody.innerHTML = `<tr>
+    <td>1</td>
+    <td>${result.brand || '—'}</td>
+    <td>${result.model || '—'}</td>
+    <td><span class="${vinClass}">${result.vin}</span></td>
+    <td>${statusBadge}</td>
+  </tr>`;
+
+      if (result.note) {
+        tbody.innerHTML += `<tr><td colspan="5" style="color:var(--warn);font-size:12px;font-family:var(--mono)">📝 ${result.note}</td></tr>`;
+      }
+
+      document.getElementById('result-section').classList.add('show');
+      if (!result.vin.includes('?')) {
+        document.getElementById('write-btn').disabled = false;
+      }
+    }
+
+    // ── Write to Google Sheets via Apps Script ─────────────
+    async function writeToSheets() {
+      const gasUrl = localStorage.getItem('vin_gas_url') || '';
+      if (!gasUrl) { toast('請先設定 Google Apps Script URL', 'error'); document.getElementById('config-details').open = true; return; }
+      if (!currentResult) { toast('請先執行 VIN 辨識', 'error'); return; }
+
+      setLoading(true, '📊 寫入 Google Sheets...');
+
+      const isDup = localHistory.some(h => h.vin === currentResult.vin);
+      const today = new Date().toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' });
+
+      const payload = {
+        action: isDup ? 'update' : 'insert',
+        vin: currentResult.vin,
+        brand: currentResult.brand || '',
+        model: currentResult.model || '',
+        date: today
+      };
+
+      try {
+        await fetch(gasUrl, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        // Save to local history
+        if (!isDup) {
+          localHistory.unshift({ vin: currentResult.vin, brand: currentResult.brand, model: currentResult.model, date: today, reupload: '' });
+        } else {
+          const idx = localHistory.findIndex(h => h.vin === currentResult.vin);
+          if (idx > -1) localHistory[idx].reupload = today;
+        }
+        localStorage.setItem('vin_history', JSON.stringify(localHistory));
+        renderHistory();
+
+        setLoading(false);
+        toast(isDup ? '⚠️ 重複 VIN，已更新再次上傳日期' : '✅ 已寫入 Google Sheets', isDup ? 'info' : 'success');
+        document.getElementById('write-btn').disabled = true;
+
+      } catch (err) {
+        setLoading(false);
+        toast('❌ 寫入失敗：' + err.message, 'error');
+      }
+    }
+
+    // ── History ────────────────────────────────────────────
+    function renderHistory() {
+      const list = document.getElementById('history-list');
+      if (localHistory.length === 0) {
+        document.getElementById('history-section').classList.remove('show');
+        return;
+      }
+      document.getElementById('history-section').classList.add('show');
+      list.innerHTML = localHistory.map((h, i) => `
+    <div class="history-row">
+      <span class="history-num">${String(i + 1).padStart(2, '0')}</span>
+      <div>
+        <div class="history-vin">${h.vin}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;">${h.brand || ''} ${h.model || ''}</div>
+      </div>
+      <div class="history-meta">
+        <div>${h.date}</div>
+        ${h.reupload ? `<div style="color:var(--warn);">再次: ${h.reupload}</div>` : ''}
+      </div>
+    </div>
+  `).join('');
+    }
+
+    // ── Utils ──────────────────────────────────────────────
+    function setLoading(show, text) {
+      const el = document.getElementById('loading');
+      el.classList.toggle('show', show);
+      if (text) document.getElementById('loading-text').textContent = text;
+      document.getElementById('scan-btn').disabled = show;
+    }
+
+    function verifyKey() {
+      const url = localStorage.getItem('vin_gas_url') || '';
+      if (!url) {
+        toast('❌ Apps Script URL 未設定！請展開設定填入', 'error');
+      } else {
+        toast('✅ Apps Script URL 已儲存', 'success');
+      }
+    }
+
+    let toastTimer;
+    function toast(msg, type = 'info') {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.className = type;
+      el.style.display = 'block';
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => { el.style.display = 'none'; }, 3500);
+    }
+  </script>
+
+  <!-- =====================================================
+  GOOGLE APPS SCRIPT 設定說明（貼至 script.google.com）
+  =====================================================
+
+  1. 前往 https://script.google.com/
+  2. 建立新專案，貼入以下程式碼：
+
+function doPost(e) {
+  const data = JSON.parse(e.postData.contents);
+  const ss = SpreadsheetApp.openById('你的_SPREADSHEET_ID');
+  const sheet = ss.getSheetByName('車身號碼-AI') || ss.insertSheet('車身號碼-AI');
+
+  // 建立標題列
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(['編號', '品牌', '車種', '車身號碼', '上傳日期', '再次上傳']);
+  }
+
+  const vin = data.vin;
+  const values = sheet.getDataRange().getValues();
+  let found = -1;
+  for (let i = 1; i < values.length; i++) {
+    if (values[i][3] === vin) { found = i + 1; break; }
+  }
+
+  if (data.action === 'insert' && found === -1) {
+    const nextNum = sheet.getLastRow();
+    sheet.appendRow([nextNum, data.brand, data.model, vin, data.date, '']);
+  } else if (found > -1) {
+    sheet.getRange(found, 6).setValue(data.date); // 再次上傳
+  }
+
+  return ContentService.createTextOutput(JSON.stringify({status:'ok'}))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+  3. 部署 → 新增部署 → 類型選「網頁應用程式」
+     - 執行身分：我
+     - 存取權：任何人
+  4. 複製部署 URL，貼入本頁設定欄位
+
+======================================================= -->
+
+</body>
+
+</html>
