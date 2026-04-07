@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VIN 車身號碼辨識系統</title>
+  <title>VIN 車身號碼辨識系統 (Gemini 升級版)</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
 
@@ -603,7 +603,7 @@
     <div class="logo-icon">🚗</div>
     <div class="logo-text">
       <h1>VIN_SCANNER</h1>
-      <p>車身號碼 AI 辨識系統 · 車身號碼-AI</p>
+      <p>車身號碼 AI 辨識系統 · Gemini Pro Vision</p>
     </div>
     <div class="status-dot">
       <div class="dot"></div>
@@ -613,23 +613,26 @@
 
   <main>
 
-    <!-- Config -->
     <details class="config-panel" id="config-details">
       <summary>系統設定 (首次使用請展開填寫)</summary>
       <div class="config-grid">
         <div>
-          <label>Google Apps Script Web App URL</label>
+          <label>Google Apps Script URL</label>
           <input type="text" id="gas-url" placeholder="https://script.google.com/macros/s/.../exec" />
           <p class="hint">部署 Apps Script 後取得的 URL</p>
         </div>
+        <div>
+          <label>Gemini API Key (免費申請)</label>
+          <input type="password" id="gemini-key" placeholder="AIzaSy..." />
+          <p class="hint"><a href="https://aistudio.google.com/app/apikey" target="_blank">👉 點此免費取得 Key</a> (僅安全儲存於本機)
+          </p>
+        </div>
       </div>
-      <p class="hint" style="margin-top:12px;">✅ AI 辨識使用 Puter.js，完全免費，不需要 API Key。</p>
       <button onclick="verifyKey()"
-        style="margin-top:10px;padding:8px 16px;background:var(--surface2);border:1px solid var(--border);color:var(--accent);border-radius:8px;cursor:pointer;font-family:var(--mono);font-size:12px;">🔍
+        style="margin-top:16px;padding:8px 16px;background:var(--surface2);border:1px solid var(--border);color:var(--accent);border-radius:8px;cursor:pointer;font-family:var(--mono);font-size:12px;">🔍
         確認設定是否已儲存</button>
     </details>
 
-    <!-- Upload -->
     <div class="upload-zone" id="upload-zone">
       <input type="file" id="file-input" accept="image/*" capture="environment" />
       <span class="upload-icon">📷</span>
@@ -641,7 +644,6 @@
       </div>
     </div>
 
-    <!-- Buttons -->
     <div class="btn-row">
       <button class="btn btn-primary" id="scan-btn" onclick="scanVIN()" disabled>
         🔍 AI 辨識 VIN
@@ -651,13 +653,11 @@
       </button>
     </div>
 
-    <!-- Loading -->
     <div class="loading-bar" id="loading">
       <div class="spinner"></div>
       <span id="loading-text">AI 辨識中，請稍候...</span>
     </div>
 
-    <!-- Result -->
     <div id="result-section">
       <div class="section-title">辨識結果</div>
       <div class="result-card">
@@ -676,7 +676,6 @@
       </div>
     </div>
 
-    <!-- History -->
     <div id="history-section">
       <div class="section-title">本地歷史記錄 <span style="color:var(--muted);font-size:10px;">(儲存於此裝置)</span></div>
       <div class="history-card" id="history-list"></div>
@@ -684,12 +683,10 @@
 
   </main>
 
-  <footer>VIN_SCANNER · 個人專用 · AI Vision 免費版 · 資料同步至 Google Sheets</footer>
+  <footer>VIN_SCANNER · 個人專用 · Gemini 1.5 Flash Vision · 資料同步至 Google Sheets</footer>
 
   <div id="toast"></div>
 
-  <!-- Puter.js 免費無限 AI Vision (GPT-4o) -->
-  <script src="https://js.puter.com/v2/"></script>
   <script>
     // ── State ──────────────────────────────────────────────
     let currentImageBase64 = null;
@@ -699,16 +696,26 @@
 
     // ── Init ───────────────────────────────────────────────
     window.addEventListener('load', () => {
+      // 讀取儲存的 GAS URL
       const savedUrl = localStorage.getItem('vin_gas_url') || '';
       if (savedUrl) document.getElementById('gas-url').value = savedUrl;
+
+      // 讀取儲存的 Gemini API Key
+      const savedKey = localStorage.getItem('gemini_api_key') || '';
+      if (savedKey) document.getElementById('gemini-key').value = savedKey;
 
       localHistory = JSON.parse(localStorage.getItem('vin_history') || '[]');
       renderHistory();
 
-      // Auto-save GAS URL
+      // 自動儲存設定變更
       document.getElementById('gas-url').addEventListener('change', e => {
         localStorage.setItem('vin_gas_url', e.target.value.trim());
         toast('✅ Apps Script URL 已儲存', 'success');
+      });
+
+      document.getElementById('gemini-key').addEventListener('change', e => {
+        localStorage.setItem('gemini_api_key', e.target.value.trim());
+        toast('✅ Gemini API Key 已儲存', 'success');
       });
     });
 
@@ -787,43 +794,67 @@
       }
     }
 
-    // ── Scan VIN via Puter.js（免費 GPT-4o Vision）────────
+    // ── Scan VIN via Google Gemini 1.5 Flash ────────
     async function scanVIN() {
       if (!currentImageBase64) { toast('請先上傳圖片', 'error'); return; }
 
-      setLoading(true, '🔍 GPT-4o AI 辨識中...');
+      const apiKey = localStorage.getItem('gemini_api_key');
+      if (!apiKey) {
+        toast('❌ 請先展開系統設定，填入 Gemini API Key', 'error');
+        document.getElementById('config-details').open = true;
+        return;
+      }
 
-      const prompt = `你是一個極度嚴謹的字元擷取(OCR)專家。請分析這張圖片（可能是汽車實體銘牌、擋風玻璃VIN、或台灣行車執照），並「絕對忠實」地提取 17 碼的車身號碼 (VIN)。
+      setLoading(true, '✨ Gemini AI 深度辨識中...');
 
-【最高指導原則】
-1. 絕對禁止腦補與自動校正：請「完全」根據圖片像素來辨識。不要因為看到 Audi 就自動聯想成常見的 B7、B8 等底盤代號。你的任務是「看圖讀字」，絕對不准「猜測車型」來湊字。
-2. 特徵限制：VIN 絕對是 17 個字元（英文大寫 + 數字），且國際標準規定「絕對不會」包含英文字母 I、O、Q。
-3. 針對「台灣行車執照」：務必精確尋找「車身號碼」欄位。絕對不要把「引擎號碼」誤認為車身號碼。
-4. 針對「車身貼紙/銘牌」：請忽略旁邊的重量資訊 (kg) 或型號代碼 (如 Typ, Trim Code, CDNC 等)。
-5. 極易混淆字元警告：請極度仔細分辨 R與B、8與B、5與6、S與5、Z與2、0與O。
-6. 誠實原則：如果某個字元因反光或髒污真的無法確認，請用 ? 代替，不要硬猜。
+      const prompt = `你是一個專業的字元擷取(OCR)專家。請分析這張圖片（可能是汽車實體銘牌、擋風玻璃VIN、或台灣行車執照），並提取 17 碼的車身號碼 (VIN)。
 
-請只回傳 JSON 格式，不要加入任何 markdown 標記 (例如 \`\`\`json) 或其他文字：
-{
-  "vin": "完整17碼",
-  "brand": "廠牌文字",
-  "model": "車型文字",
-  "confidence": "high/medium/low",
-  "note": "若有模糊、易混淆或使用?代替的字元，請在此詳細說明原因"
-}`;
+【重點辨識規則】
+1. 注意方向性：圖片中的文字「極有可能是垂直或旋轉 90 度」的狀態，請仔細沿著文字基準線，從頭到尾完整閱讀，不要跳字。
+2. 絕對長度：VIN 絕對是 17 個字元（英文大寫 + 數字），不含 I、O、Q。
+3. 容錯推測：遇到局部反光、髒污或因角度導致字體變形時，請根據殘餘輪廓與前後文「盡最大努力推測」（特別注意 1與7、8與B、J與U、5與6 的分別）。「只有」在該字元 100% 徹底毀損無法辨識時，才使用 ?。
+4. 排除雜訊：針對「車身貼紙」，請忽略旁邊的 kg 重量資訊或 Typ 代碼。針對「行照」，請只抓「車身號碼」欄位，避開引擎號碼。
+5. 嚴禁腦補車型：請完全依賴你看到的像素推測，不要用 Audi B7、B8 等底盤代碼來強行覆蓋圖片上的字元。`;
 
       try {
         const mimeType = currentMimeType || 'image/jpeg';
-        const dataUrl = `data:${mimeType};base64,${currentImageBase64}`;
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
-        const response = await puter.ai.chat(prompt, dataUrl);
-        const rawText = (typeof response === 'string'
-          ? response
-          : response?.message?.content || response?.text || '').trim();
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{
+              parts: [
+                { text: prompt },
+                { inline_data: { mime_type: mimeType, data: currentImageBase64 } }
+              ]
+            }],
+            generationConfig: {
+              response_mime_type: "application/json",
+              response_schema: {
+                type: "OBJECT",
+                properties: {
+                  vin: { type: "STRING", description: "完整17碼" },
+                  brand: { type: "STRING", description: "廠牌文字" },
+                  model: { type: "STRING", description: "車型文字" },
+                  confidence: { type: "STRING", description: "high/medium/low" },
+                  note: { type: "STRING", description: "簡述辨識狀況" }
+                },
+                required: ["vin", "brand", "model", "confidence", "note"]
+              }
+            }
+          })
+        });
 
-        const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) throw new Error('無法解析 AI 回應');
-        const result = JSON.parse(jsonMatch[0]);
+        if (!response.ok) {
+          const errData = await response.json();
+          throw new Error(errData.error?.message || 'API 請求失敗');
+        }
+
+        const data = await response.json();
+        const resultText = data.candidates[0].content.parts[0].text;
+        const result = JSON.parse(resultText);
 
         currentResult = result;
 
@@ -839,14 +870,18 @@
         setLoading(false);
 
         if (result.vin.includes('?')) {
-          toast('⚠️ 部分字元不確定，建議重新拍攝清晰照片', 'info');
+          toast('⚠️ 仍有模糊字元，建議重新拍攝', 'info');
         } else {
-          toast('✅ VIN 辨識完成', 'success');
+          toast('✅ Gemini 辨識完成', 'success');
         }
 
       } catch (err) {
         setLoading(false);
-        toast('❌ 辨識失敗：' + err.message, 'error');
+        if (err.message.includes('API_KEY_INVALID')) {
+          toast('❌ API Key 錯誤，請檢查設定', 'error');
+        } else {
+          toast('❌ 辨識失敗：' + err.message, 'error');
+        }
         console.error(err);
       }
     }
@@ -958,10 +993,12 @@
 
     function verifyKey() {
       const url = localStorage.getItem('vin_gas_url') || '';
-      if (!url) {
-        toast('❌ Apps Script URL 未設定！請展開設定填入', 'error');
+      const key = localStorage.getItem('gemini_api_key') || '';
+
+      if (!url || !key) {
+        toast('❌ 設定未完成！請確認 GAS URL 與 Gemini API Key 都有填寫', 'error');
       } else {
-        toast('✅ Apps Script URL 已儲存', 'success');
+        toast('✅ 設定已確認儲存完畢', 'success');
       }
     }
 
@@ -975,48 +1012,6 @@
       toastTimer = setTimeout(() => { el.style.display = 'none'; }, 3500);
     }
   </script>
-
-  <!-- =====================================================
-  GOOGLE APPS SCRIPT 設定說明（貼至 script.google.com）
-  =====================================================
-
-  1. 前往 https://script.google.com/
-  2. 建立新專案，貼入以下程式碼：
-
-function doPost(e) {
-  const data = JSON.parse(e.postData.contents);
-  const ss = SpreadsheetApp.openById('你的_SPREADSHEET_ID');
-  const sheet = ss.getSheetByName('車身號碼-AI') || ss.insertSheet('車身號碼-AI');
-
-  // 建立標題列
-  if (sheet.getLastRow() === 0) {
-    sheet.appendRow(['編號', '品牌', '車種', '車身號碼', '上傳日期', '再次上傳']);
-  }
-
-  const vin = data.vin;
-  const values = sheet.getDataRange().getValues();
-  let found = -1;
-  for (let i = 1; i < values.length; i++) {
-    if (values[i][3] === vin) { found = i + 1; break; }
-  }
-
-  if (data.action === 'insert' && found === -1) {
-    const nextNum = sheet.getLastRow();
-    sheet.appendRow([nextNum, data.brand, data.model, vin, data.date, '']);
-  } else if (found > -1) {
-    sheet.getRange(found, 6).setValue(data.date); // 再次上傳
-  }
-
-  return ContentService.createTextOutput(JSON.stringify({status:'ok'}))
-    .setMimeType(ContentService.MimeType.JSON);
-}
-
-  3. 部署 → 新增部署 → 類型選「網頁應用程式」
-     - 執行身分：我
-     - 存取權：任何人
-  4. 複製部署 URL，貼入本頁設定欄位
-
-======================================================= -->
 
 </body>
 
